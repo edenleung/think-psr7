@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace GuzzleHttp\Psr7;
+namespace think\Psr7;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
@@ -155,5 +155,10 @@ class Response implements ResponseInterface
         if ($statusCode < 100 || $statusCode >= 600) {
             throw new \InvalidArgumentException('Status code must be an integer value between 1xx and 5xx.');
         }
+    }
+
+    public function send()
+    {
+        return response_to_string($this);
     }
 }

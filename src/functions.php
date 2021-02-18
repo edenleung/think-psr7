@@ -1,5 +1,6 @@
 <?php
-namespace GuzzleHttp\Psr7;
+
+namespace think\Psr7;
 
 use Psr\Http\Message\MessageInterface;
 use Psr\Http\Message\RequestInterface;
@@ -7,17 +8,20 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UriInterface;
+use think\Response;
 
 /**
  * Returns the string representation of an HTTP message.
  *
  * @param MessageInterface $message Message to convert to a string.
+ *
+ * @return string
  */
-function str(MessageInterface $message): string
+function str(MessageInterface $message)
 {
     if ($message instanceof RequestInterface) {
         $msg = trim($message->getMethod() . ' '
-                . $message->getRequestTarget())
+            . $message->getRequestTarget())
             . ' HTTP/' . $message->getProtocolVersion();
         if (!$message->hasHeader('host')) {
             $msg .= "\r\nHost: " . $message->getUri()->getHost();
@@ -31,30 +35,55 @@ function str(MessageInterface $message): string
     }
 
     foreach ($message->getHeaders() as $name => $values) {
-        if (strtolower($name) === 'set-cookie') {
-            foreach ($values as $value) {
-                $msg .= "\r\n{$name}: " . $value;
-            }
-        } else {
-            $msg .= "\r\n{$name}: " . implode(', ', $values);
-        }
+        $msg .= "\r\n{$name}: " . implode(', ', $values);
     }
 
     return "{$msg}\r\n\r\n" . $message->getBody();
 }
 
+function response_to_string(ResponseInterface $message)
+{
+    $headers = $message->getHeaders();
+    foreach ($headers as $name => $values) {
+        $headers[$name] = implode(", ", $values);
+    }
+
+    if (empty($headers)) {
+        $headers['Content-Length'] = $message->getBody()->getSize();
+        $headers['Content-Type'] = 'text/html';
+        $headers['Connection'] = 'keep-alive';
+        $headers['Server'] = 'nginx';
+    } else {
+        if ('' === $message->getHeaderLine('Transfer-Encoding') && '' === $message->getHeaderLine('Content-Length')) {
+            $headers['Content-Length'] = $message->getBody()->getSize();
+        }
+        if ('' === $message->getHeaderLine('Content-Type')) {
+            $headers['Content-Type'] = 'text/html';
+        }
+        if ('' === $message->getHeaderLine('Connection')) {
+            $headers['nConnection'] = 'keep-alive';
+        }
+        if ('' === $message->getHeaderLine('Server')) {
+            $headers['Server'] = 'nginx';
+        }
+    }
+
+    return response($message->getBody(), $message->getStatusCode(), $headers);
+}
+
 /**
  * Returns a UriInterface for the given value.
  *
- * This function accepts a string or {@see \Psr\Http\Message\UriInterface} and
+ * This function accepts a string or {@see Psr\Http\Message\UriInterface} and
  * returns a UriInterface for the given value. If the value is already a
  * `UriInterface`, it is returned as-is.
  *
  * @param string|UriInterface $uri
  *
+ * @return UriInterface
  * @throws \InvalidArgumentException
  */
-function uri_for($uri): UriInterface
+function uri_for($uri)
 {
     if ($uri instanceof UriInterface) {
         return $uri;
@@ -72,17 +101,18 @@ function uri_for($uri): UriInterface
  * - metadata: Array of custom metadata.
  * - size: Size of the stream.
  *
- * @param resource|string|int|float|bool|StreamInterface|callable|\Iterator|null $resource Entity body data
- * @param array{size?: int, metadata?: array}                                    $options  Additional options
+ * @param resource|string|null|int|float|bool|StreamInterface|callable|\Iterator $resource Entity body data
+ * @param array                                                                  $options  Additional options
  *
+ * @return StreamInterface
  * @throws \InvalidArgumentException if the $resource arg is not valid.
  */
-function stream_for($resource = '', array $options = []): StreamInterface
+function stream_for($resource = '', array $options = [])
 {
     if (is_scalar($resource)) {
-        $stream = try_fopen('php://temp', 'r+');
+        $stream = fopen('php://temp', 'r+');
         if ($resource !== '') {
-            fwrite($stream, (string) $resource);
+            fwrite($stream, $resource);
             fseek($stream, 0);
         }
         return new Stream($stream, $options);
@@ -90,10 +120,8 @@ function stream_for($resource = '', array $options = []): StreamInterface
 
     switch (gettype($resource)) {
         case 'resource':
-            /** @var resource $resource */
             return new Stream($resource, $options);
         case 'object':
-            /** @var object $resource */
             if ($resource instanceof StreamInterface) {
                 return $resource;
             } elseif ($resource instanceof \Iterator) {
@@ -110,7 +138,7 @@ function stream_for($resource = '', array $options = []): StreamInterface
             }
             break;
         case 'NULL':
-            return new Stream(try_fopen('php://temp', 'r+'), $options);
+            return new Stream(fopen('php://temp', 'r+'), $options);
     }
 
     if (is_callable($resource)) {
@@ -127,8 +155,10 @@ function stream_for($resource = '', array $options = []): StreamInterface
  * contains a key, this function will inject a key with a '' string value.
  *
  * @param string|array $header Header to parse into components.
+ *
+ * @return array Returns the parsed header values.
  */
-function parse_header($header): array
+function parse_header($header)
 {
     static $trimmed = "\"'  \n\t\r";
     $params = $matches = [];
@@ -158,8 +188,10 @@ function parse_header($header): array
  * headers into an array of headers with no comma separated values.
  *
  * @param string|array $header Header to normalize.
+ *
+ * @return array Returns the normalized header field values.
  */
-function normalize_header($header): array
+function normalize_header($header)
 {
     if (!is_array($header)) {
         return array_map('trim', explode(',', $header));
@@ -195,8 +227,10 @@ function normalize_header($header): array
  *
  * @param RequestInterface $request Request to clone and modify.
  * @param array            $changes Changes to apply.
+ *
+ * @return RequestInterface
  */
-function modify_request(RequestInterface $request, array $changes): RequestInterface
+function modify_request(RequestInterface $request, array $changes)
 {
     if (!$changes) {
         return $request;
@@ -236,26 +270,26 @@ function modify_request(RequestInterface $request, array $changes): RequestInter
     }
 
     if ($request instanceof ServerRequestInterface) {
-        return (new ServerRequest(
-            $changes['method'] ?? $request->getMethod(),
+        return new ServerRequest(
+            isset($changes['method']) ? $changes['method'] : $request->getMethod(),
             $uri,
             $headers,
-            $changes['body'] ?? $request->getBody(),
-            $changes['version'] ?? $request->getProtocolVersion(),
+            isset($changes['body']) ? $changes['body'] : $request->getBody(),
+            isset($changes['version'])
+                ? $changes['version']
+                : $request->getProtocolVersion(),
             $request->getServerParams()
-        ))
-        ->withParsedBody($request->getParsedBody())
-        ->withQueryParams($request->getQueryParams())
-        ->withCookieParams($request->getCookieParams())
-        ->withUploadedFiles($request->getUploadedFiles());
+        );
     }
 
     return new Request(
-        $changes['method'] ?? $request->getMethod(),
+        isset($changes['method']) ? $changes['method'] : $request->getMethod(),
         $uri,
         $headers,
-        $changes['body'] ?? $request->getBody(),
-        $changes['version'] ?? $request->getProtocolVersion()
+        isset($changes['body']) ? $changes['body'] : $request->getBody(),
+        isset($changes['version'])
+            ? $changes['version']
+            : $request->getProtocolVersion()
     );
 }
 
@@ -269,7 +303,7 @@ function modify_request(RequestInterface $request, array $changes): RequestInter
  *
  * @throws \RuntimeException
  */
-function rewind_body(MessageInterface $message): void
+function rewind_body(MessageInterface $message)
 {
     $body = $message->getBody();
 
@@ -288,23 +322,20 @@ function rewind_body(MessageInterface $message): void
  * @param string $mode     Mode used to open the file
  *
  * @return resource
- *
  * @throws \RuntimeException if the file cannot be opened
  */
-function try_fopen(string $filename, string $mode)
+function try_fopen($filename, $mode)
 {
     $ex = null;
-    set_error_handler(static function (int $errno, string $errstr) use ($filename, $mode, &$ex): bool {
+    set_error_handler(function () use ($filename, $mode, &$ex) {
         $ex = new \RuntimeException(sprintf(
             'Unable to open %s using mode %s: %s',
             $filename,
             $mode,
-            $errstr
+            func_get_args()[1]
         ));
-        return false;
     });
 
-    /** @var resource $handle */
     $handle = fopen($filename, $mode);
     restore_error_handler();
 
@@ -323,17 +354,18 @@ function try_fopen(string $filename, string $mode)
  * @param StreamInterface $stream Stream to read
  * @param int             $maxLen Maximum number of bytes to read. Pass -1
  *                                to read the entire stream.
- *
+ * @return string
  * @throws \RuntimeException on error.
  */
-function copy_to_string(StreamInterface $stream, int $maxLen = -1): string
+function copy_to_string(StreamInterface $stream, $maxLen = -1)
 {
     $buffer = '';
 
     if ($maxLen === -1) {
         while (!$stream->eof()) {
             $buf = $stream->read(1048576);
-            if ($buf === '') {
+            // Using a loose equality here to match on '' and false.
+            if ($buf == null) {
                 break;
             }
             $buffer .= $buf;
@@ -344,7 +376,8 @@ function copy_to_string(StreamInterface $stream, int $maxLen = -1): string
     $len = 0;
     while (!$stream->eof() && $len < $maxLen) {
         $buf = $stream->read($maxLen - $len);
-        if ($buf === '') {
+        // Using a loose equality here to match on '' and false.
+        if ($buf == null) {
             break;
         }
         $buffer .= $buf;
@@ -368,8 +401,8 @@ function copy_to_string(StreamInterface $stream, int $maxLen = -1): string
 function copy_to_stream(
     StreamInterface $source,
     StreamInterface $dest,
-    int $maxLen = -1
-): void {
+    $maxLen = -1
+) {
     $bufferSize = 8192;
 
     if ($maxLen === -1) {
@@ -399,13 +432,14 @@ function copy_to_stream(
  * @param string          $algo      Hash algorithm (e.g. md5, crc32, etc)
  * @param bool            $rawOutput Whether or not to use raw output
  *
+ * @return string Returns the hash of the stream
  * @throws \RuntimeException on error.
  */
 function hash(
     StreamInterface $stream,
-    string $algo,
-    bool $rawOutput = false
-): string {
+    $algo,
+    $rawOutput = false
+) {
     $pos = $stream->tell();
 
     if ($pos > 0) {
@@ -427,15 +461,18 @@ function hash(
  * Read a line from the stream up to the maximum allowed buffer length
  *
  * @param StreamInterface $stream    Stream to read from
- * @param int|null        $maxLength Maximum buffer length
+ * @param int             $maxLength Maximum buffer length
+ *
+ * @return string
  */
-function readline(StreamInterface $stream, ?int $maxLength = null): string
+function readline(StreamInterface $stream, $maxLength = null)
 {
     $buffer = '';
     $size = 0;
 
     while (!$stream->eof()) {
-        if ('' === ($byte = $stream->read(1))) {
+        // Using a loose equality here to match on '' and false.
+        if (null == ($byte = $stream->read(1))) {
             return $buffer;
         }
         $buffer .= $byte;
@@ -450,8 +487,12 @@ function readline(StreamInterface $stream, ?int $maxLength = null): string
 
 /**
  * Parses a request message string into a request object.
+ *
+ * @param string $message Request message string.
+ *
+ * @return Request
  */
-function parse_request(string $message): RequestInterface
+function parse_request($message)
 {
     $data = _parse_message($message);
     $matches = [];
@@ -474,8 +515,12 @@ function parse_request(string $message): RequestInterface
 
 /**
  * Parses a response message string into a response object.
+ *
+ * @param string $message Response message string.
+ *
+ * @return Response
  */
-function parse_response(string $message): ResponseInterface
+function parse_response($message)
 {
     $data = _parse_message($message);
     // According to https://tools.ietf.org/html/rfc7230#section-3.1.2 the space
@@ -487,11 +532,11 @@ function parse_response(string $message): ResponseInterface
     $parts = explode(' ', $data['start-line'], 3);
 
     return new Response(
-        (int) $parts[1],
+        $parts[1],
         $data['headers'],
         $data['body'],
         explode('/', $parts[0])[1],
-        $parts[2] ?? null
+        isset($parts[2]) ? $parts[2] : null
     );
 }
 
@@ -505,8 +550,10 @@ function parse_response(string $message): ResponseInterface
  *
  * @param string   $str         Query string to parse
  * @param int|bool $urlEncoding How the query string is encoded
+ *
+ * @return array
  */
-function parse_query(string $str, $urlEncoding = true): array
+function parse_query($str, $urlEncoding = true)
 {
     $result = [];
 
@@ -552,19 +599,20 @@ function parse_query(string $str, $urlEncoding = true): array
  * string. This function does not modify the provided keys when an array is
  * encountered (like http_build_query would).
  *
- * @param array     $params   Query string parameters.
- * @param int|false $encoding Set to false to not encode, PHP_QUERY_RFC3986
- *                            to encode using RFC3986, or PHP_QUERY_RFC1738
- *                            to encode using RFC1738.
+ * @param array    $params   Query string parameters.
+ * @param int|bool $encoding Set to false to not encode, PHP_QUERY_RFC3986
+ *                           to encode using RFC3986, or PHP_QUERY_RFC1738
+ *                           to encode using RFC1738.
+ * @return string
  */
-function build_query(array $params, $encoding = PHP_QUERY_RFC3986): string
+function build_query(array $params, $encoding = PHP_QUERY_RFC3986)
 {
     if (!$params) {
         return '';
     }
 
     if ($encoding === false) {
-        $encoder = function (string $str): string {
+        $encoder = function ($str) {
             return $str;
         };
     } elseif ($encoding === PHP_QUERY_RFC3986) {
@@ -577,18 +625,18 @@ function build_query(array $params, $encoding = PHP_QUERY_RFC3986): string
 
     $qs = '';
     foreach ($params as $k => $v) {
-        $k = $encoder((string) $k);
+        $k = $encoder($k);
         if (!is_array($v)) {
             $qs .= $k;
             if ($v !== null) {
-                $qs .= '=' . $encoder((string) $v);
+                $qs .= '=' . $encoder($v);
             }
             $qs .= '&';
         } else {
             foreach ($v as $vv) {
                 $qs .= $k;
                 if ($vv !== null) {
-                    $qs .= '=' . $encoder((string) $vv);
+                    $qs .= '=' . $encoder($vv);
                 }
                 $qs .= '&';
             }
@@ -600,8 +648,12 @@ function build_query(array $params, $encoding = PHP_QUERY_RFC3986): string
 
 /**
  * Determines the mimetype of a file by looking at its extension.
+ *
+ * @param $filename
+ *
+ * @return null|string
  */
-function mimetype_from_filename(string $filename): ?string
+function mimetype_from_filename($filename)
 {
     return mimetype_from_extension(pathinfo($filename, PATHINFO_EXTENSION));
 }
@@ -609,12 +661,14 @@ function mimetype_from_filename(string $filename): ?string
 /**
  * Maps a file extensions to a mimetype.
  *
+ * @param $extension string The file extension.
+ *
+ * @return string|null
  * @link http://svn.apache.org/repos/asf/httpd/httpd/branches/1.3.x/conf/mime.types
  */
-function mimetype_from_extension(string $extension): ?string
+function mimetype_from_extension($extension)
 {
     static $mimetypes = [
-        '3gp' => 'video/3gpp',
         '7z' => 'application/x-7z-compressed',
         'aac' => 'audio/x-aac',
         'ai' => 'application/postscript',
@@ -701,7 +755,6 @@ function mimetype_from_extension(string $extension): ?string
         'txt' => 'text/plain',
         'wav' => 'audio/x-wav',
         'webm' => 'video/webm',
-        'webp' => 'image/webp',
         'wma' => 'audio/x-ms-wma',
         'wmv' => 'video/x-ms-wmv',
         'woff' => 'application/x-font-woff',
@@ -719,7 +772,9 @@ function mimetype_from_extension(string $extension): ?string
 
     $extension = strtolower($extension);
 
-    return $mimetypes[$extension] ?? null;
+    return isset($mimetypes[$extension])
+        ? $mimetypes[$extension]
+        : null;
 }
 
 /**
@@ -731,9 +786,9 @@ function mimetype_from_extension(string $extension): ?string
  *
  * @param string $message HTTP request or response to parse.
  *
- * @internal
+ * @return array
  */
-function _parse_message(string $message): array
+function _parse_message($message)
 {
     if (!$message) {
         throw new \InvalidArgumentException('Invalid message');
@@ -747,7 +802,7 @@ function _parse_message(string $message): array
         throw new \InvalidArgumentException('Invalid message: Missing header delimiter');
     }
 
-    [$rawHeaders, $body] = $messageParts;
+    list($rawHeaders, $body) = $messageParts;
     $rawHeaders .= "\r\n"; // Put back the delimiter we split previously
     $headerParts = preg_split("/\r?\n/", $rawHeaders, 2);
 
@@ -755,13 +810,14 @@ function _parse_message(string $message): array
         throw new \InvalidArgumentException('Invalid message: Missing status line');
     }
 
-    [$startLine, $rawHeaders] = $headerParts;
+    list($startLine, $rawHeaders) = $headerParts;
 
     if (preg_match("/(?:^HTTP\/|^[A-Z]+ \S+ HTTP\/)(\d+(?:\.\d+)?)/i", $startLine, $matches) && $matches[1] === '1.0') {
         // Header folding is deprecated for HTTP/1.1, but allowed in HTTP/1.0
         $rawHeaders = preg_replace(Rfc7230::HEADER_FOLD_REGEX, ' ', $rawHeaders);
     }
 
+    /** @var array[] $headerLines */
     $count = preg_match_all(Rfc7230::HEADER_REGEX, $rawHeaders, $headerLines, PREG_SET_ORDER);
 
     // If these aren't the same, then one line didn't match and there's an invalid header.
@@ -793,9 +849,10 @@ function _parse_message(string $message): array
  * @param string $path    Path from the start-line
  * @param array  $headers Array of headers (each value an array).
  *
+ * @return string
  * @internal
  */
-function _parse_request_uri(string $path, array $headers): string
+function _parse_request_uri($path, array $headers)
 {
     $hostKey = array_filter(array_keys($headers), function ($k) {
         return strtolower($k) === 'host';
@@ -813,27 +870,24 @@ function _parse_request_uri(string $path, array $headers): string
 }
 
 /**
- * Get a short summary of the message body.
+ * Get a short summary of the message body
  *
  * Will return `null` if the response is not printable.
  *
  * @param MessageInterface $message    The message to get the body summary
  * @param int              $truncateAt The maximum allowed size of the summary
+ *
+ * @return null|string
  */
-function get_message_body_summary(MessageInterface $message, int $truncateAt = 120): ?string
+function get_message_body_summary(MessageInterface $message, $truncateAt = 120)
 {
     $body = $message->getBody();
 
-    if (!$body->isSeekable() || !$body->isReadable()) {
+    if (!$body->isSeekable()) {
         return null;
     }
 
     $size = $body->getSize();
-
-    if ($size === 0) {
-        return null;
-    }
-
     $summary = $body->read($truncateAt);
     $body->rewind();
 
@@ -843,7 +897,7 @@ function get_message_body_summary(MessageInterface $message, int $truncateAt = 1
 
     // Matches any printable character, including unicode characters:
     // letters, marks, numbers, punctuation, spacing, and separators.
-    if (preg_match('/[^\pL\pM\pN\pP\pS\pZ\n\r\t]/u', $summary)) {
+    if (preg_match('/[^\pL\pM\pN\pP\pS\pZ\n\r\t]/', $summary)) {
         return null;
     }
 
@@ -851,7 +905,7 @@ function get_message_body_summary(MessageInterface $message, int $truncateAt = 1
 }
 
 /** @internal */
-function _caseless_remove(array $keys, array $data): array
+function _caseless_remove($keys, array $data)
 {
     $result = [];
 

@@ -2,13 +2,14 @@
 
 declare(strict_types=1);
 
-namespace GuzzleHttp\Psr7;
+namespace think\Psr7;
 
 use InvalidArgumentException;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UploadedFileInterface;
 use Psr\Http\Message\UriInterface;
+use think\Request as BaseRequest;
 
 /**
  * Server-side HTTP request
@@ -64,17 +65,16 @@ class ServerRequest extends Request implements ServerRequestInterface
      * @param string                               $version      Protocol version
      * @param array                                $serverParams Typically the $_SERVER superglobal
      */
-    public function __construct(
-        string $method,
-        $uri,
-        array $headers = [],
-        $body = null,
-        string $version = '1.1',
-        array $serverParams = []
-    ) {
-        $this->serverParams = $serverParams;
+    public function __construct(BaseRequest $request)
+    {
+        $this->serverParams = $_SERVER;
 
-        parent::__construct($method, $uri, $headers, $body, $version);
+        $method = $request->method();
+        $uri = $request->url(true);
+        $headers = $request->header();
+        $body = $request->getInput();
+        $this->queryParams = $request->get();
+        parent::__construct($method, $uri, $headers, $body);
     }
 
     /**
