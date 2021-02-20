@@ -12,16 +12,20 @@ class Message
     {
         $type = 'html';
         $data = (string)$response->getBody();
+
         $hasContentType = $response->hasHeader('Content-Type');
         if ($hasContentType === true) {
-            $contentType = explode('/', $response->getHeaderLine('Content-Type'));
-            $type = $contentType[1];
+            if (strpos($response->getHeaderLine('Content-Type'), 'json') !== false) {
+                $type = 'json';
+                $data = json_decode($data, true);
+            }
 
-            if ($response->getHeaderLine('Content-Type') === 'application/json') {
-                $decode_data = json_decode($data);
-                if (gettype($decode_data) == 'object') {
-                    $data = json_decode($data, true);
-                }
+            if (strpos($response->getHeaderLine('Content-Type'), 'xml') !== false) {
+                $type = 'xml';
+            }
+
+            if (strpos($response->getHeaderLine('Content-Type'), 'javascript') !== false) {
+                $type = 'jsonp';
             }
         }
 
@@ -29,6 +33,7 @@ class Message
         foreach ($headers as $name => $values) {
             $headers[$name] = implode(", ", $values);
         }
+
         return \think\Response::create($data, $type, $response->getStatusCode())->header($headers);
     }
 }
