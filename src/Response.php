@@ -6,8 +6,6 @@ namespace think\Psr7;
 
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\StreamInterface;
-use think\Container;
-use think\Response as ThinkResponse;
 
 /**
  * PSR-7 response implementation.
@@ -15,8 +13,6 @@ use think\Response as ThinkResponse;
 class Response implements ResponseInterface
 {
     use MessageTrait;
-
-    private $responseChunkSize = 4096;
 
     /** Map of standard HTTP status code/reason phrases */
     private const PHRASES = [
@@ -159,59 +155,5 @@ class Response implements ResponseInterface
         if ($statusCode < 100 || $statusCode >= 600) {
             throw new \InvalidArgumentException('Status code must be an integer value between 1xx and 5xx.');
         }
-    }
-
-    /**
-     * Send the response the client
-     *
-     * @param ResponseInterface $response
-     * @return void
-     */
-    public function emit(ResponseInterface $response)
-    {
-        if (headers_sent() === false) {
-            $this->emitStatusLine($response);
-            $this->emitHeaders($response);
-        }
-
-        return (string)$response->getBody();
-    }
-
-    /**
-     * Emit Response Headers
-     *
-     * @param ResponseInterface $response
-     */
-    private function emitHeaders(ResponseInterface $response): void
-    {
-        foreach ($response->getHeaders() as $name => $values) {
-            $first = strtolower($name) !== 'set-cookie';
-            foreach ($values as $value) {
-                $header = sprintf('%s: %s', $name, $value);
-                header($header, $first, $response->getStatusCode());
-                $first = false;
-            }
-        }
-    }
-
-    /**
-     * Emit Status Line
-     *
-     * @param ResponseInterface $response
-     */
-    private function emitStatusLine(ResponseInterface $response): void
-    {
-        $statusLine = sprintf(
-            'HTTP/%s %s %s',
-            $response->getProtocolVersion(),
-            $response->getStatusCode(),
-            $response->getReasonPhrase()
-        );
-        header($statusLine, true, $response->getStatusCode());
-    }
-
-    public function __toString()
-    {
-        return $this->emit($this);
     }
 }
