@@ -35,9 +35,8 @@ trait MessageTrait
             return $this;
         }
 
-        $new = clone $this;
-        $new->protocol = $version;
-        return $new;
+        $this->protocol = $version;
+        return $this;
     }
 
     public function getHeaders(): array
@@ -74,14 +73,13 @@ trait MessageTrait
         $value = $this->normalizeHeaderValue($value);
         $normalized = strtolower($header);
 
-        $new = clone $this;
-        if (isset($new->headerNames[$normalized])) {
-            unset($new->headers[$new->headerNames[$normalized]]);
+        if (isset($this->headerNames[$normalized])) {
+            unset($this->headers[$this->headerNames[$normalized]]);
         }
-        $new->headerNames[$normalized] = $header;
-        $new->headers[$header] = $value;
+        $this->headerNames[$normalized] = $header;
+        $this->headers[$header] = $value;
 
-        return $new;
+        return $this;
     }
 
     public function withAddedHeader($header, $value): MessageInterface
@@ -90,16 +88,15 @@ trait MessageTrait
         $value = $this->normalizeHeaderValue($value);
         $normalized = strtolower($header);
 
-        $new = clone $this;
-        if (isset($new->headerNames[$normalized])) {
+        if (isset($this->headerNames[$normalized])) {
             $header = $this->headerNames[$normalized];
-            $new->headers[$header] = array_merge($this->headers[$header], $value);
+            $this->headers[$header] = array_merge($this->headers[$header], $value);
         } else {
-            $new->headerNames[$normalized] = $header;
-            $new->headers[$header] = $value;
+            $this->headerNames[$normalized] = $header;
+            $this->headers[$header] = $value;
         }
 
-        return $new;
+        return $this;
     }
 
     public function withoutHeader($header): MessageInterface
@@ -112,10 +109,9 @@ trait MessageTrait
 
         $header = $this->headerNames[$normalized];
 
-        $new = clone $this;
-        unset($new->headers[$header], $new->headerNames[$normalized]);
+        unset($this->headers[$header], $this->headerNames[$normalized]);
 
-        return $new;
+        return $this;
     }
 
     public function getBody(): StreamInterface
@@ -133,9 +129,8 @@ trait MessageTrait
             return $this;
         }
 
-        $new = clone $this;
-        $new->stream = $body;
-        return $new;
+        $this->stream = $body;
+        return $this;
     }
 
     /**
@@ -223,7 +218,7 @@ trait MessageTrait
             ));
         }
 
-        if (! preg_match('/^[a-zA-Z0-9\'`#$%&*+.^_|~!-]+$/', $header)) {
+        if (!preg_match('/^[a-zA-Z0-9\'`#$%&*+.^_|~!-]+$/', $header)) {
             throw new \InvalidArgumentException(
                 sprintf(
                     '"%s" is not valid header name',
