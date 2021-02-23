@@ -9,6 +9,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UploadedFileInterface;
 use Psr\Http\Message\UriInterface;
+use think\facade\Log;
 use think\Request as BaseRequest;
 
 /**
@@ -65,16 +66,21 @@ class ServerRequest extends Request implements ServerRequestInterface
      * @param string                               $version      Protocol version
      * @param array                                $serverParams Typically the $_SERVER superglobal
      */
-    public function __construct(BaseRequest $request)
+    public function __construct()
     {
-        $this->serverParams = $_SERVER;
+        $uri = self::getUriFromGlobals();
+        $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+        $headers = getallheaders();
 
-        $method = $request->method();
-        $uri = $request->url(true);
-        $headers = $request->header();
-        $body = $request->getInput();
-        $this->queryParams = $request->get();
-        parent::__construct($method, $uri, $headers, $body);
+        $this->serverParams = $_SERVER;
+        $this->uploadedFiles  = self::normalizeFiles($_FILES);
+        $this->queryParams = $_GET;
+        $this->cookieParams = $_COOKIE;
+        $this->parsedBody = $_POST;
+        $body = new CachingStream(new LazyOpenStream('php://input', 'r+'));
+        $protocol = isset($_SERVER['SERVER_PROTOCOL']) ? str_replace('HTTP/', '', $_SERVER['SERVER_PROTOCOL']) : '1.1';
+
+        parent::__construct($method, $uri, $headers, $body, $protocol);
     }
 
     /**
