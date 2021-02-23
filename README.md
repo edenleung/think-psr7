@@ -15,7 +15,7 @@ Route::get('/hello', function (ServerRequest $req, Response $response) {
 
 ## 注意
 
-`public/index.php` 入口文件以下代码失效
+如使用 `HttpHandlerRunner::make()` 返回 response 信息， `public/index.php` 入口文件以下代码将会失效
 
 **此[文件](https://github.com/edenleung/think-psr7/blob/master/src/HttpHandlerRunner.php#L20)代为处理**
 
